@@ -19,19 +19,19 @@ from typing import Dict, List, Optional
 
 # Configuration
 TOKEN = 'your discord bot token'
-SERVER_LIMIT = 3  # Increased limit per user
-DATABASE_FILE = 'database.json'  # Changed to JSON for better structure
+SERVER_LIMIT = 1
+DATABASE_FILE = 'database.json'
 LOG_FILE = 'bot.log'
-ADMIN_IDS = [your dc id]  # Add your admin user IDs here
+ADMIN_IDS = [your_dc_id]
 
 # Available Docker images with metadata
 DOCKER_IMAGES = {
-    "ubuntu-22.04": {
-        "name": "ubuntu-22.04-with-tmate",
-        "display_name": "Ubuntu 22.04",
-        "description": "Standard Ubuntu 22.04 with tmate pre-installed",
-        "ram": "6GB",
-        "cpu": "2 cores"
+    "nxh-i7": {
+        "name": "nxh-i7-docker-image",
+        "display_name": "NXH-i7 Premium",
+        "description": "High-performance Ubuntu 22.04 with advanced tools",
+        "ram": "12GB",
+        "cpu": "4 cores"
     },
 }
 
@@ -61,7 +61,7 @@ class ImageSelectView(View):
         
         # Create a dropdown for image selection
         select = Select(
-            placeholder="Choose an OS image...",
+            placeholder="Choose your premium OS...",
             options=[
                 discord.SelectOption(
                     label=img["display_name"],
@@ -74,35 +74,35 @@ class ImageSelectView(View):
         self.add_item(select)
         
         # Add deploy button
-        deploy_button = Button(label="Deploy", style=discord.ButtonStyle.green, emoji="🚀")
+        deploy_button = Button(label="Deploy Now", style=discord.ButtonStyle.green, emoji="✨")
         deploy_button.callback = self.deploy_callback
         self.add_item(deploy_button)
     
     async def select_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("This is not your deployment!", ephemeral=True)
+            await interaction.response.send_message("This is not your deployment! 😊", ephemeral=True)
             return
             
         self.selected_image = interaction.data['values'][0]
         img_data = DOCKER_IMAGES[self.selected_image]
         
         embed = discord.Embed(
-            title="Image Selected",
-            description=f"**{img_data['display_name']}** ready for deployment",
-            color=0x00ff00
+            title="🌟 Image Selected!",
+            description=f"**{img_data['display_name']}** is ready for you!",
+            color=0xff69b4
         )
         embed.add_field(name="Description", value=img_data["description"], inline=False)
-        embed.add_field(name="Resources", value=f"{img_data['ram']} RAM | {img_data['cpu']} CPU", inline=False)
+        embed.add_field(name="Resources", value=f"💎 {img_data['ram']} RAM | ⚡ {img_data['cpu']} CPU", inline=False)
         
         await interaction.response.edit_message(embed=embed, view=self)
     
     async def deploy_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("This is not your deployment!", ephemeral=True)
+            await interaction.response.send_message("This is not your deployment! 😊", ephemeral=True)
             return
             
         if not self.selected_image:
-            await interaction.response.send_message("Please select an image first!", ephemeral=True)
+            await interaction.response.send_message("Please select an image first! 😊", ephemeral=True)
             return
             
         await interaction.response.defer()
@@ -158,8 +158,6 @@ def update_container_status(container_id: str, status: str):
     
     save_database(data)
 
-from typing import List, Dict
-
 def get_user_containers(user_id: str) -> List[Dict]:
     data = load_database()
     return data.get(str(user_id), [])
@@ -173,6 +171,7 @@ def get_container_info(container_id: str) -> Optional[Dict]:
     for user_id, containers in data.items():
         for container in containers:
             if container["container_id"] == container_id:
+                container["user_id"] = user_id
                 return container
     return None
 
@@ -209,45 +208,58 @@ async def get_container_stats(container_id: str) -> Dict:
         return None
 
 async def capture_ssh_session_line(process) -> Optional[str]:
-    while True:
-        output = await process.stdout.readline()
-        if not output:
-            break
-        output = output.decode('utf-8').strip()
-        if "ssh session:" in output:
-            return output.split("ssh session:")[1].strip()
+    try:
+        while True:
+            output = await asyncio.wait_for(process.stdout.readline(), timeout=30.0)
+            if not output:
+                break
+            output = output.decode('utf-8').strip()
+            if "ssh session:" in output:
+                return output.split("ssh session:")[1].strip()
+    except asyncio.TimeoutError:
+        logger.warning("Timeout while waiting for SSH session")
+    except Exception as e:
+        logger.error(f"Error capturing SSH session: {e}")
     return None
 
 async def execute_command(command: str) -> tuple:
-    process = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    return stdout.decode(), stderr.decode()
+    try:
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        return stdout.decode(), stderr.decode()
+    except Exception as e:
+        logger.error(f"Error executing command '{command}': {e}")
+        return "", str(e)
 
 # Bot events
 @bot.event
 async def on_ready():
     change_status.start()
-    logger.info(f'Bot is ready. Logged in as {bot.user}')
-    await bot.tree.sync()
+    logger.info(f'✨ Bot is ready! Logged in as {bot.user}')
+    try:
+        await bot.tree.sync()
+        logger.info("✨ Commands synced successfully!")
+    except Exception as e:
+        logger.error(f"Failed to sync commands: {e}")
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=20)
 async def change_status():
     try:
         data = load_database()
         total_instances = sum(len(containers) for containers in data.values())
         
         statuses = [
-            f"Managing {total_instances} instances",
-            f"with {len(DOCKER_IMAGES)} OS options",
-            "Type /help for commands"
+            f"💎 {total_instances} premium servers",
+            f"✨ with {len(DOCKER_IMAGES)} awesome options",
+            "😊 Type /help for magic commands"
         ]
         
         current_status = statuses[int(time.time()) % len(statuses)]
-        await bot.change_presence(activity=discord.Game(name=current_status))
+        await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=current_status))
     except Exception as e:
         logger.error(f"Failed to update status: {e}")
 
@@ -257,9 +269,9 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
     
     if count_user_containers(user) >= SERVER_LIMIT:
         embed = discord.Embed(
-            title="Instance Limit Reached",
-            description=f"You can only have {SERVER_LIMIT} instances at a time.",
-            color=0xff0000
+            title="💖 Limit Reached!",
+            description=f"You can only have {SERVER_LIMIT} premium instances at a time.",
+            color=0xff69b4
         )
         await interaction.followup.send(embed=embed)
         return
@@ -267,42 +279,43 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
     image_data = DOCKER_IMAGES.get(image_name)
     if not image_data:
         embed = discord.Embed(
-            title="Invalid Image",
-            description="The selected image is not available.",
-            color=0xff0000
+            title="🥺 Invalid Image",
+            description="The selected premium image is not available.",
+            color=0xff69b4
         )
         await interaction.followup.send(embed=embed)
         return
     
     # Send initial embed with loading animation
     embed = discord.Embed(
-        title=f"🚀 Deploying {image_data['display_name']} Instance",
-        description="Creating your instance... This may take a moment.",
-        color=0x3498db
+        title=f"🚀 Deploying {image_data['display_name']} Server",
+        description="✨ Creating your premium server... This may take a moment.",
+        color=0x9370db
     )
     embed.add_field(name="Status", value="🔄 Initializing...", inline=False)
-    embed.set_footer(text="This message will update automatically")
+    embed.set_footer(text="✨ Made with love for you!")
     message = await interaction.followup.send(embed=embed)
     
+    container_id = None
     try:
         # Step 1: Pull the image if not exists
-        embed.set_field_at(0, name="Status", value="🔍 Checking Docker image...", inline=False)
+        embed.set_field_at(0, name="Status", value="🔍 Checking premium image...", inline=False)
         await message.edit(embed=embed)
         
         try:
             client.images.get(image_data['name'])
         except docker.errors.ImageNotFound:
-            embed.set_field_at(0, name="Status", value="⬇️ Downloading Docker image...", inline=False)
+            embed.set_field_at(0, name="Status", value="⬇️ Downloading premium image...", inline=False)
             await message.edit(embed=embed)
             
             try:
                 client.images.pull(image_data['name'])
             except docker.errors.DockerException as e:
                 logger.error(f"Error pulling image {image_data['name']}: {e}")
-                raise Exception(f"Failed to download Docker image: {e}")
+                raise Exception(f"Failed to download premium image: {e}")
         
         # Step 2: Create container
-        embed.set_field_at(0, name="Status", value="🛠️ Creating container...", inline=False)
+        embed.set_field_at(0, name="Status", value="🛠️ Creating your premium server...", inline=False)
         await message.edit(embed=embed)
         
         try:
@@ -310,18 +323,18 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
                 image_data['name'],
                 detach=True,
                 tty=True,
-                mem_limit='6g',  # 6GB memory limit
-                cpu_quota=200000,  # Limit CPU usage
-                cpu_shares=512,  # CPU priority
+                mem_limit='8g',
+                cpu_quota=400000,
+                cpu_shares=1024,
                 restart_policy={"Name": "on-failure", "MaximumRetryCount": 3}
             )
             container_id = container.id
         except docker.errors.DockerException as e:
             logger.error(f"Error creating container: {e}")
-            raise Exception(f"Failed to create container: {e}")
+            raise Exception(f"Failed to create premium server: {e}")
         
-        # Step 3: Start tmate session
-        embed.set_field_at(0, name="Status", value="🔑 Generating SSH access...", inline=False)
+        # Step 3: Start SSH session
+        embed.set_field_at(0, name="Status", value="🔑 Generating secure SSH access...", inline=False)
         await message.edit(embed=embed)
         
         try:
@@ -336,8 +349,12 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
                 raise Exception("Failed to generate SSH session")
         except Exception as e:
             logger.error(f"Error generating SSH session: {e}")
-            container.stop()
-            container.remove()
+            try:
+                container = client.containers.get(container_id)
+                container.stop()
+                container.remove()
+            except:
+                pass
             raise Exception(f"Failed to generate SSH session: {e}")
         
         # Step 4: Finalize
@@ -345,26 +362,26 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
         
         # Create success embed
         success_embed = discord.Embed(
-            title=f"✅ {image_data['display_name']} Instance Ready",
-            description="Your instance has been successfully deployed!",
-            color=0x00ff00
+            title=f"🎉 {image_data['display_name']} Server Ready!",
+            description="✨ Your premium server is live and ready!",
+            color=0x00ff7f
         )
         success_embed.add_field(
-            name="SSH Access",
+            name="🔐 Direct SSH Access",
             value=f"```{ssh_session_line}```",
             inline=False
         )
         success_embed.add_field(
-            name="Resources",
+            name="💎 Resources",
             value=f"{image_data['ram']} RAM | {image_data['cpu']} CPU",
             inline=True
         )
         success_embed.add_field(
-            name="Management",
-            value=f"Use `/stop {container_id[:12]}` to stop this instance",
+            name="⚙️ Management",
+            value=f"Use `/stop {container_id[:12]}` to pause this server",
             inline=True
         )
-        success_embed.set_footer(text=f"Instance ID: {container_id[:12]}")
+        success_embed.set_footer(text=f"✨ Server ID: {container_id[:12]} | Made with 💖")
         
         # Send to user's DMs
         try:
@@ -373,12 +390,12 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
             logger.warning(f"Could not send DM to user {interaction.user.id}")
         
         # Update original message
-        embed.title = f"✅ Deployment Complete"
-        embed.description = f"{image_data['display_name']} instance created successfully!"
-        embed.set_field_at(0, name="Status", value="✔️ Completed", inline=False)
-        embed.color = 0x00ff00
+        embed.title = f"✅ Deployment Complete!"
+        embed.description = f"✨ {image_data['display_name']} server is ready!"
+        embed.set_field_at(0, name="Status", value="✔️ Completed Successfully!", inline=False)
+        embed.color = 0x00ff7f
         embed.add_field(
-            name="Next Steps",
+            name="💌 Next Steps",
             value="Check your DMs for SSH access details!",
             inline=False
         )
@@ -387,14 +404,24 @@ async def create_server_task(interaction: discord.Interaction, image_name: str):
     except Exception as e:
         logger.error(f"Error in deployment: {e}")
         
+        # Cleanup if container was created
+        if container_id:
+            try:
+                container = client.containers.get(container_id)
+                container.stop()
+                container.remove()
+                remove_from_database(container_id)
+            except:
+                pass
+        
         error_embed = discord.Embed(
-            title="❌ Deployment Failed",
+            title="🥺 Deployment Failed",
             description=str(e),
-            color=0xff0000
+            color=0xff69b4
         )
         error_embed.add_field(
             name="Status",
-            value="Failed - Please try again later",
+            value="Failed - Please try again later 😊",
             inline=False
         )
         
@@ -406,18 +433,19 @@ async def manage_server(interaction: discord.Interaction, action: str, container
     
     if not container_info:
         embed = discord.Embed(
-            title="Instance Not Found",
-            description="No instance found with that ID.",
-            color=0xff0000
+            title="🥺 Server Not Found",
+            description="No premium server found with that ID.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
+    # Check permissions
     if container_info['user_id'] != user and interaction.user.id not in ADMIN_IDS:
         embed = discord.Embed(
-            title="Permission Denied",
-            description="You don't have permission to manage this instance.",
-            color=0xff0000
+            title="🥺 Permission Denied",
+            description="You don't have permission to manage this premium server.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
@@ -447,17 +475,17 @@ async def manage_server(interaction: discord.Interaction, action: str, container
             raise ValueError("Invalid action")
         
         embed = discord.Embed(
-            title=f"Instance {status.capitalize()}",
-            description=f"Instance `{container_id[:12]}` has been {status}.",
-            color=0x00ff00
+            title=f"✨ Server {status.capitalize()}!",
+            description=f"Premium server `{container_id[:12]}` has been {status}.",
+            color=0x00ff7f
         )
         
         if action != "remove":
             stats = await get_container_stats(container_id)
             if stats:
                 embed.add_field(
-                    name="Resources",
-                    value=f"CPU: {stats['cpu_percent']}% | Memory: {stats['memory_percent']}%",
+                    name="📊 Resources",
+                    value=f"⚡ CPU: {stats['cpu_percent']}% | 💾 Memory: {stats['memory_percent']}%",
                     inline=False
                 )
         
@@ -475,32 +503,33 @@ async def manage_server(interaction: discord.Interaction, action: str, container
                 
                 if ssh_session_line:
                     dm_embed = discord.Embed(
-                        title=f"🔑 New SSH Session for {image_data.get('display_name', 'Instance')}",
+                        title=f"🔑 New SSH Session for {image_data.get('display_name', 'Server')}",
                         description=f"```{ssh_session_line}```",
-                        color=0x00ff00
+                        color=0x00ff7f
                     )
                     dm_embed.add_field(
-                        name="Instance ID",
+                        name="Server ID",
                         value=container_id[:12],
                         inline=False
                     )
+                    dm_embed.set_footer(text="✨ Made with 💖")
                     await interaction.user.send(embed=dm_embed)
             except Exception as e:
                 logger.error(f"Error regenerating SSH session: {e}")
     
     except docker.errors.NotFound:
         embed = discord.Embed(
-            title="Instance Not Found",
-            description="The container no longer exists.",
-            color=0xff0000
+            title="🥺 Server Not Found",
+            description="The premium server no longer exists.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed)
         remove_from_database(container_id)
     except docker.errors.DockerException as e:
         embed = discord.Embed(
-            title="Error Managing Instance",
+            title="🥺 Error Managing Server",
             description=str(e),
-            color=0xff0000
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed)
 
@@ -510,18 +539,18 @@ async def regen_ssh_command(interaction: discord.Interaction, container_id: str)
     
     if not container_info:
         embed = discord.Embed(
-            title="Instance Not Found",
-            description="No instance found with that ID.",
-            color=0xff0000
+            title="🥺 Server Not Found",
+            description="No premium server found with that ID.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
     if container_info['user_id'] != user and interaction.user.id not in ADMIN_IDS:
         embed = discord.Embed(
-            title="Permission Denied",
-            description="You don't have permission to manage this instance.",
-            color=0xff0000
+            title="🥺 Permission Denied",
+            description="You don't have permission to manage this premium server.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
@@ -531,7 +560,7 @@ async def regen_ssh_command(interaction: discord.Interaction, container_id: str)
     try:
         container = client.containers.get(container_id)
         if container.status != 'running':
-            raise Exception("Instance is not running")
+            raise Exception("Premium server is not running")
         
         exec_cmd = await asyncio.create_subprocess_exec(
             "docker", "exec", container_id, "tmate", "-F",
@@ -544,38 +573,40 @@ async def regen_ssh_command(interaction: discord.Interaction, container_id: str)
             raise Exception("Failed to generate SSH session")
         
         # Update the database with new SSH command
-        for user_id, containers in load_database().items():
+        data = load_database()
+        for user_id, containers in data.items():
             for container in containers:
                 if container["container_id"] == container_id:
                     container["ssh_command"] = ssh_session_line
-        save_database(load_database())
+        save_database(data)
         
         image_data = DOCKER_IMAGES.get(container_info['image'], {})
         
         embed = discord.Embed(
-            title=f"🔑 New SSH Session for {image_data.get('display_name', 'Instance')}",
+            title=f"🔑 New SSH Session for {image_data.get('display_name', 'Server')}",
             description=f"```{ssh_session_line}```",
-            color=0x00ff00
+            color=0x00ff7f
         )
         embed.add_field(
-            name="Instance ID",
+            name="Server ID",
             value=container_id[:12],
             inline=False
         )
+        embed.set_footer(text="✨ Made with 💖")
         
         await interaction.user.send(embed=embed)
         await interaction.followup.send(
             embed=discord.Embed(
-                description="New SSH session generated. Check your DMs!",
-                color=0x00ff00
+                description="✨ New SSH session generated! Check your DMs! 😊",
+                color=0x00ff7f
             )
         )
     
     except Exception as e:
         embed = discord.Embed(
-            title="Error Generating SSH Session",
+            title="🥺 Error Generating SSH Session",
             description=str(e),
-            color=0xff0000
+            color=0xff69b4
         )
         await interaction.followup.send(embed=embed)
 
@@ -584,9 +615,9 @@ async def show_instance_info(interaction: discord.Interaction, container_id: str
     
     if not container_info:
         embed = discord.Embed(
-            title="Instance Not Found",
-            description="No instance found with that ID.",
-            color=0xff0000
+            title="🥺 Server Not Found",
+            description="No premium server found with that ID.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
@@ -594,9 +625,9 @@ async def show_instance_info(interaction: discord.Interaction, container_id: str
     user = str(interaction.user.id)
     if container_info['user_id'] != user and interaction.user.id not in ADMIN_IDS:
         embed = discord.Embed(
-            title="Permission Denied",
-            description="You don't have permission to view this instance.",
-            color=0xff0000
+            title="🥺 Permission Denied",
+            description="You don't have permission to view this premium server.",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
@@ -609,63 +640,63 @@ async def show_instance_info(interaction: discord.Interaction, container_id: str
         stats = await get_container_stats(container_id)
         
         embed = discord.Embed(
-            title=f"{image_data.get('display_name', 'Instance')} Details",
-            color=0x3498db
+            title=f"✨ {image_data.get('display_name', 'Server')} Details",
+            color=0x9370db
         )
         embed.add_field(
-            name="Instance ID",
+            name="🆔 Server ID",
             value=container_id[:12],
             inline=True
         )
         embed.add_field(
-            name="Status",
+            name="📊 Status",
             value=container.status.capitalize(),
             inline=True
         )
         embed.add_field(
-            name="Created",
+            name="📅 Created",
             value=datetime.datetime.fromisoformat(container_info['created_at']).strftime('%Y-%m-%d %H:%M'),
             inline=True
         )
         
         if stats:
             embed.add_field(
-                name="CPU Usage",
+                name="⚡ CPU Usage",
                 value=f"{stats['cpu_percent']}%",
                 inline=True
             )
             embed.add_field(
-                name="Memory Usage",
+                name="💾 Memory Usage",
                 value=f"{stats['memory_percent']}% ({stats['memory_usage']/1024/1024:.2f}MB/{stats['memory_limit']/1024/1024:.2f}MB)",
                 inline=True
             )
         
         if container_info.get('ssh_command'):
             embed.add_field(
-                name="SSH Access",
+                name="🔐 Direct SSH Access",
                 value=f"```{container_info['ssh_command']}```",
                 inline=False
             )
         
         view = View()
         if container.status == 'running':
-            stop_button = Button(label="Stop", style=discord.ButtonStyle.red, emoji="⏹️")
+            stop_button = Button(label="⏹️ Stop", style=discord.ButtonStyle.red)
             stop_button.callback = lambda i: manage_server(i, "stop", container_id)
             view.add_item(stop_button)
             
-            restart_button = Button(label="Restart", style=discord.ButtonStyle.blurple, emoji="🔄")
+            restart_button = Button(label="🔄 Restart", style=discord.ButtonStyle.blurple)
             restart_button.callback = lambda i: manage_server(i, "restart", container_id)
             view.add_item(restart_button)
         else:
-            start_button = Button(label="Start", style=discord.ButtonStyle.green, emoji="▶️")
+            start_button = Button(label="▶️ Start", style=discord.ButtonStyle.green)
             start_button.callback = lambda i: manage_server(i, "start", container_id)
             view.add_item(start_button)
         
-        ssh_button = Button(label="Regen SSH", style=discord.ButtonStyle.gray, emoji="🔑")
+        ssh_button = Button(label="🔑 Regen SSH", style=discord.ButtonStyle.gray)
         ssh_button.callback = lambda i: regen_ssh_command(i, container_id)
         view.add_item(ssh_button)
         
-        remove_button = Button(label="Remove", style=discord.ButtonStyle.red, emoji="🗑️")
+        remove_button = Button(label="🗑️ Remove", style=discord.ButtonStyle.red)
         remove_button.callback = lambda i: manage_server(i, "remove", container_id)
         view.add_item(remove_button)
         
@@ -673,90 +704,90 @@ async def show_instance_info(interaction: discord.Interaction, container_id: str
     
     except docker.errors.NotFound:
         embed = discord.Embed(
-            title="Instance Not Found",
-            description="The container no longer exists.",
-            color=0xff0000
+            title="🥺 Server Not Found",
+            description="The premium server no longer exists.",
+            color=0xff69b4
         )
         await interaction.followup.send(embed=embed)
         remove_from_database(container_id)
     except Exception as e:
         embed = discord.Embed(
-            title="Error Getting Instance Info",
+            title="🥺 Error Getting Server Info",
             description=str(e),
-            color=0xff0000
+            color=0xff69b4
         )
         await interaction.followup.send(embed=embed)
 
 # Slash commands
-@bot.tree.command(name="deploy", description="Create a new instance")
+@bot.tree.command(name="deploy", description="✨ Create a new premium server")
 async def deploy(interaction: discord.Interaction):
     """Show the image selection GUI for deployment"""
     view = ImageSelectView(interaction.user.id)
     
     embed = discord.Embed(
-        title="🚀 Deploy a New Instance",
-        description="Select an OS image from the dropdown below:",
-        color=0x3498db
+        title="🚀 Deploy a Premium Server",
+        description="✨ Select your premium OS from the dropdown below:",
+        color=0x9370db
     )
-    embed.set_footer(text="You have 60 seconds to choose")
+    embed.set_footer(text="✨ You have 60 seconds to choose | Made with 💖")
     
     await interaction.response.send_message(embed=embed, view=view)
 
-@bot.tree.command(name="start", description="Start your instance")
-@app_commands.describe(container_id="The ID of your instance (first 12 chars)")
+@bot.tree.command(name="start", description="▶️ Start your premium server")
+@app_commands.describe(container_id="The ID of your premium server (first 12 chars)")
 async def start(interaction: discord.Interaction, container_id: str):
-    """Start a stopped instance"""
+    """Start a stopped premium server"""
     await manage_server(interaction, "start", container_id)
 
-@bot.tree.command(name="stop", description="Stop your instance")
-@app_commands.describe(container_id="The ID of your instance (first 12 chars)")
+@bot.tree.command(name="stop", description="⏹️ Stop your premium server")
+@app_commands.describe(container_id="The ID of your premium server (first 12 chars)")
 async def stop(interaction: discord.Interaction, container_id: str):
-    """Stop a running instance"""
+    """Stop a running premium server"""
     await manage_server(interaction, "stop", container_id)
 
-@bot.tree.command(name="restart", description="Restart your instance")
-@app_commands.describe(container_id="The ID of your instance (first 12 chars)")
+@bot.tree.command(name="restart", description="🔄 Restart your premium server")
+@app_commands.describe(container_id="The ID of your premium server (first 12 chars)")
 async def restart(interaction: discord.Interaction, container_id: str):
-    """Restart an instance"""
+    """Restart a premium server"""
     await manage_server(interaction, "restart", container_id)
 
-@bot.tree.command(name="remove", description="Remove your instance")
-@app_commands.describe(container_id="The ID of your instance (first 12 chars)")
+@bot.tree.command(name="remove", description="🗑️ Remove your premium server")
+@app_commands.describe(container_id="The ID of your premium server (first 12 chars)")
 async def remove(interaction: discord.Interaction, container_id: str):
-    """Remove an instance"""
+    """Remove a premium server"""
     await manage_server(interaction, "remove", container_id)
 
-@bot.tree.command(name="regen-ssh", description="Generate a new SSH session")
-@app_commands.describe(container_id="The ID of your instance (first 12 chars)")
+@bot.tree.command(name="regen-ssh", description="🔑 Generate a new SSH session")
+@app_commands.describe(container_id="The ID of your premium server (first 12 chars)")
 async def regen_ssh(interaction: discord.Interaction, container_id: str):
     """Regenerate SSH session credentials"""
     await regen_ssh_command(interaction, container_id)
 
-@bot.tree.command(name="info", description="Get info about an instance")
-@app_commands.describe(container_id="The ID of your instance (first 12 chars)")
+@bot.tree.command(name="info", description="ℹ️ Get info about a premium server")
+@app_commands.describe(container_id="The ID of your premium server (first 12 chars)")
 async def info(interaction: discord.Interaction, container_id: str):
-    """Get detailed information about an instance"""
+    """Get detailed information about a premium server"""
     await show_instance_info(interaction, container_id)
 
-@bot.tree.command(name="list", description="List all your instances")
+@bot.tree.command(name="list", description="📋 List all your premium servers")
 async def list_instances(interaction: discord.Interaction):
-    """List all instances owned by the user"""
+    """List all premium servers owned by the user"""
     user = str(interaction.user.id)
     containers = get_user_containers(user)
     
     if not containers:
         embed = discord.Embed(
-            title="No Instances Found",
-            description="You don't have any instances yet. Use `/deploy` to create one!",
-            color=0xff0000
+            title="🥺 No Premium Servers Found",
+            description="You don't have any premium servers yet. Use `/deploy` to create one! 😊",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed)
         return
     
     embed = discord.Embed(
-        title="Your Instances",
-        description=f"You have {len(containers)}/{SERVER_LIMIT} instances",
-        color=0x3498db
+        title="📋 Your Premium Servers",
+        description=f"✨ You have {len(containers)}/{SERVER_LIMIT} premium servers",
+        color=0x9370db
     )
     
     for container in containers:
@@ -764,14 +795,14 @@ async def list_instances(interaction: discord.Interaction):
         status = container.get('status', 'unknown').capitalize()
         
         embed.add_field(
-            name=f"{image_data.get('display_name', 'Instance')} ({container['container_id'][:12]})",
-            value=f"Status: {status}\nCreated: {datetime.datetime.fromisoformat(container['created_at']).strftime('%Y-%m-%d')}",
+            name=f"✨ {image_data.get('display_name', 'Server')} ({container['container_id'][:12]})",
+            value=f"📊 Status: {status}\n📅 Created: {datetime.datetime.fromisoformat(container['created_at']).strftime('%Y-%m-%d')}",
             inline=True
         )
     
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="stats", description="Get system resource statistics")
+@bot.tree.command(name="stats", description="📊 Get system resource statistics")
 async def stats(interaction: discord.Interaction):
     """Show system resource usage"""
     await interaction.response.defer()
@@ -787,106 +818,108 @@ async def stats(interaction: discord.Interaction):
         running_containers = len(client.containers.list())
         
         embed = discord.Embed(
-            title="System Statistics",
-            color=0x3498db
+            title="📊 System Statistics",
+            color=0x9370db
         )
         embed.add_field(
-            name="CPU Usage",
+            name="⚡ CPU Usage",
             value=f"{cpu_percent}%",
             inline=True
         )
         embed.add_field(
-            name="Memory Usage",
+            name="💾 Memory Usage",
             value=f"{memory.percent}% ({memory.used/1024/1024:.0f}MB/{memory.total/1024/1024:.0f}MB)",
             inline=True
         )
         embed.add_field(
-            name="Disk Usage",
+            name="💿 Disk Usage",
             value=f"{disk.percent}% ({disk.used/1024/1024:.0f}MB/{disk.total/1024/1024:.0f}MB)",
             inline=True
         )
         embed.add_field(
-            name="Docker Containers",
+            name="🐳 Docker Servers",
             value=f"{running_containers}/{total_containers} running",
             inline=True
         )
+        embed.set_footer(text="✨ Made with 💖")
         
         await interaction.followup.send(embed=embed)
     
     except Exception as e:
         embed = discord.Embed(
-            title="Error Getting Statistics",
+            title="🥺 Error Getting Statistics",
             description=str(e),
-            color=0xff0000
+            color=0xff69b4
         )
         await interaction.followup.send(embed=embed)
 
-@bot.tree.command(name="help", description="Show help information")
+@bot.tree.command(name="help", description="❓ Show help information")
 async def help_command(interaction: discord.Interaction):
     """Show help message"""
     embed = discord.Embed(
-        title="Instance Manager Help",
-        description="Manage your Docker instances through Discord",
-        color=0x3498db
+        title="✨ Premium Server Manager Help",
+        description="✨ Manage your premium Docker servers through Discord",
+        color=0x9370db
     )
     
     embed.add_field(
-        name="/deploy",
-        value="Create a new instance with a graphical interface",
+        name="🚀 /deploy",
+        value="✨ Create a new premium server with a beautiful interface",
         inline=False
     )
     embed.add_field(
-        name="/list",
-        value="List all your instances",
+        name="📋 /list",
+        value="✨ List all your premium servers",
         inline=False
     )
     embed.add_field(
-        name="/info <id>",
-        value="Get detailed information about an instance",
+        name="ℹ️ /info <id>",
+        value="✨ Get detailed information about a premium server",
         inline=False
     )
     embed.add_field(
-        name="/start <id>",
-        value="Start a stopped instance",
+        name="▶️ /start <id>",
+        value="✨ Start a stopped premium server",
         inline=False
     )
     embed.add_field(
-        name="/stop <id>",
-        value="Stop a running instance",
+        name="⏹️ /stop <id>",
+        value="✨ Stop a running premium server",
         inline=False
     )
     embed.add_field(
-        name="/restart <id>",
-        value="Restart an instance",
+        name="🔄 /restart <id>",
+        value="✨ Restart a premium server",
         inline=False
     )
     embed.add_field(
-        name="/regen-ssh <id>",
-        value="Generate new SSH credentials",
+        name="🔑 /regen-ssh <id>",
+        value="✨ Generate new SSH credentials",
         inline=False
     )
     embed.add_field(
-        name="/remove <id>",
-        value="Permanently remove an instance",
+        name="🗑️ /remove <id>",
+        value="✨ Permanently remove a premium server",
         inline=False
     )
     embed.add_field(
-        name="/stats",
-        value="Show system resource usage",
+        name="📊 /stats",
+        value="✨ Show system resource usage",
         inline=False
     )
+    embed.set_footer(text="✨ Made with 💖 | Enjoy your premium experience!")
     
     await interaction.response.send_message(embed=embed)
 
 # Admin commands
-@bot.tree.command(name="admin-list", description="[ADMIN] List all instances")
+@bot.tree.command(name="admin-list", description="[ADMIN] 🛠️ List all premium servers")
 async def admin_list(interaction: discord.Interaction):
-    """Admin command to list all instances"""
+    """Admin command to list all premium servers"""
     if interaction.user.id not in ADMIN_IDS:
         embed = discord.Embed(
-            title="Permission Denied",
-            description="This command is for admins only.",
-            color=0xff0000
+            title="🥺 Permission Denied",
+            description="This command is for admins only. 😊",
+            color=0xff69b4
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
@@ -895,21 +928,49 @@ async def admin_list(interaction: discord.Interaction):
     total_instances = sum(len(containers) for containers in data.values())
     
     embed = discord.Embed(
-        title="All Instances",
-        description=f"There are {total_instances} instances in total",
-        color=0x3498db
+        title="🛠️ All Premium Servers",
+        description=f"✨ There are {total_instances} premium servers in total",
+        color=0x9370db
     )
     
     for user_id, containers in data.items():
-        user = await bot.fetch_user(int(user_id))
-        username = user.name if user else f"Unknown User ({user_id})"
+        try:
+            user = await bot.fetch_user(int(user_id))
+            username = user.name if user else f"Unknown User ({user_id})"
+        except:
+            username = f"Unknown User ({user_id})"
         
         embed.add_field(
-            name=username,
-            value=f"{len(containers)} instances",
+            name=f"👤 {username}",
+            value=f"💎 {len(containers)} premium servers",
             inline=True
         )
     
     await interaction.response.send_message(embed=embed)
+
+# Error handling
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CommandNotFound):
+        embed = discord.Embed(
+            title="🥺 Command Not Found",
+            description="The command you tried to use doesn't exist. 😊",
+            color=0xff69b4
+        )
+    else:
+        embed = discord.Embed(
+            title="🥺 An Error Occurred",
+            description=f"```{str(error)}```",
+            color=0xff69b4
+        )
+        logger.error(f"Command error: {error}")
+    
+    try:
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    except:
+        try:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except:
+            pass
 
 bot.run(TOKEN)
